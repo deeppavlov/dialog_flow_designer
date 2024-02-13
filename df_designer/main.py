@@ -2,6 +2,7 @@ import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Literal
 
 import aiofiles
 import dff
@@ -290,61 +291,77 @@ async def run_to_websocket(websocket: WebSocket):
     print("== disconnected ==")
 
 
+#######################################################
+build_data: list[Any] = []
+
+
 class Preset(BaseModel):
-    preset: str
+    name: str
+    duration: int
+    end_status: Literal["running", "completed", "failed", "null", "stopped"]
+
+
+def imitation(id: int, duration: int, end_status: str):
+    time.sleep(duration)
+    if build_data[id]["status"] == "stopped":
+        return
+    build_data[id]["status"] = end_status
 
 
 @app.post("/bot/build/start", tags=["bot"])
-async def bot_build_start(preset: Preset):
-    """Start a build."""
-    return preset
+async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
+    """Start a build.
 
-
-@app.get("/bot/build/status/{status}", tags=["bot"])
-async def bot_build_status(status: str):
-    """Get build status.
-    - work
-    - error
-    - done
-    - null
+    * name - build name
+    * duration - seconds
+    * end_status - "running", "completed", "failed", "null"
     """
-    if status == "work":
-        return {"status": "work"}
-    elif status == "error":
-        return {"status": "error"}
-    elif status == "done":
-        return {"status": "done"}
-    elif status == "null":
-        return {"status": "null"}
+    build_data.append(
+        {
+            "id": len(build_data),
+            "timestamp": time.time(),
+            "preset_name": preset.dict()["name"],
+            "status": "running",
+            "logs": [],
+            "logs_path": "",
+            "runs": [],
+        }
+    )
+    background_tasks.add_task(
+        imitation,
+        id=build_data[-1]["id"],
+        duration=preset.dict()["duration"],
+        end_status=preset.dict()["end_status"],
+    )
+    return {"status": "ok", "build_info": build_data[-1]}
+
+
+@app.get("/bot/build/status/", tags=["bot"])
+async def bot_build_status():
+    """Get build status."""
+    try:
+        return build_data[-1]["status"]
+    except IndexError:
+        return {"build": "not found"}
 
 
 @app.get("/bot/build/stop", tags=["bot"])
 async def bot_build_stop():
     """Build stop."""
-    return {"status": "stopped"}
-
-
-builds = [
-    {"build1": "2024_01_30_11_01_1706601676", "status": "done"},
-    {"build2": "2024_01_30_11_01_1806601676", "status": "error"},
-    {
-        "build3": "2024_01_30_11_01_1906601676",
-        "status": "done",
-        "run1": {"status": "terminate", "timestamp": "1707307452.57604"},
-        "run2": {"status": "terminate", "timestamp": "1707307452.57604"},
-    },
-]
+    build_data[-1]["status"] = "stopped"
+    return {"status": "ok"}
 
 
 @app.get("/bot/builds", tags=["bot"])
 async def bot_builds():
     """List builds."""
-    return builds
+    return {"build": build_data}
 
 
 @app.get("/bot/builds/{build_id}", tags=["bot"])
-async def bot_builds_id(build_id: str):
+async def bot_builds_id(build_id: int):
     """Specific builds."""
-    for build in builds:
-        if build.get(build_id) is not None:
-            return build
+    try:
+        return {"build": build_data[build_id]}
+    except IndexError:
+        return {"build": "not found"}
