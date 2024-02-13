@@ -178,57 +178,6 @@ async def run_file(run_id: str):
         )
 
 
-@app.websocket("/socket")
-async def websocket(websocket: WebSocket):
-    await websocket.accept()
-    cmd = app.cmd_to_run
-    proc = await asyncio.create_subprocess_shell(
-        cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    file_log_name = datetime.now().strftime("%Y_%m_%d_%H_%M_%s") + ".txt"
-    file_for_log = Path(app.dir_logs, file_log_name)
-
-    async with async_session() as session:
-        stmt = (
-            insert(Runs)
-            .values(
-                datetime=time.time(),
-                path=str(Path(file_for_log).absolute()),
-                status="start",
-            )
-            .returning()
-        )
-        id_record = await session.execute(stmt)
-        await session.commit()
-    if not Path(app.dir_logs).exists():
-        Path(app.dir_logs).mkdir()
-
-    async with aiofiles.open(file_for_log, "a") as file:
-        while True:
-            line = await proc.stdout.readline()
-            if line:
-                data = line.decode("utf-8")
-                await file.write(data)
-                await file.flush()
-                try:
-                    await websocket.send_text(data)
-                except ConnectionClosedOK:
-                    proc.terminate()
-                    async with async_session() as session:
-                        stmt = (
-                            update(Runs)
-                            .values(status="stop")
-                            .where(Runs.id == id_record.inserted_primary_key[0])
-                        )
-                        await session.execute(stmt)
-                        await session.commit()
-                    break
-            else:
-                break
-
-
 @app.get("/process/start")
 async def process_start(background_tasks: BackgroundTasks):
     """start a process"""
@@ -258,7 +207,7 @@ async def process_pid():
     return {"status": "ok", "pid": pid}
 
 
-@app.websocket("/run")
+@app.websocket("/socket")
 async def run_to_websocket(websocket: WebSocket):
     print(websocket.client_state.value)
     await websocket.accept()
