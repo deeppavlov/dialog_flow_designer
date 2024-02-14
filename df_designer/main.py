@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 from datetime import datetime
 from pathlib import Path
@@ -232,14 +233,14 @@ class Preset(BaseModel):
     end_status: Literal["running", "completed", "failed", "null", "stopped"]
 
 
-def imitation(id: int, duration: int, end_status: str):
+def imitation_build(id: int, duration: int, end_status: str):
     time.sleep(duration)
     if build_data[id]["status"] == "stopped":
         return
     build_data[id]["status"] = end_status
 
 
-@app.post("/bot/build/start", tags=["bot"])
+@app.post("/bot/build/start", tags=["bot build"])
 async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
     """Start a build.
 
@@ -259,7 +260,7 @@ async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
         }
     )
     background_tasks.add_task(
-        imitation,
+        imitation_build,
         id=build_data[-1]["id"],
         duration=preset.dict()["duration"],
         end_status=preset.dict()["end_status"],
@@ -267,7 +268,7 @@ async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
     return {"status": "ok", "build_info": build_data[-1]}
 
 
-@app.get("/bot/build/status/", tags=["bot"])
+@app.get("/bot/build/status/", tags=["bot build"])
 async def bot_build_status():
     """Get build status."""
     try:
@@ -276,23 +277,120 @@ async def bot_build_status():
         return {"build": "not found"}
 
 
-@app.get("/bot/build/stop", tags=["bot"])
+@app.get("/bot/build/stop", tags=["bot build"])
 async def bot_build_stop():
     """Build stop."""
     build_data[-1]["status"] = "stopped"
     return {"status": "ok"}
 
 
-@app.get("/bot/builds", tags=["bot"])
+@app.get("/bot/builds", tags=["bot build"])
 async def bot_builds():
     """List builds."""
-    return {"build": build_data}
+    # TODO: add filtering
+    build_join = copy.deepcopy(build_data)
+    runs_join = copy.deepcopy(runs_data)
+    for build in build_join:
+        build.pop("logs")
+        build.pop("logs_path")
+        for run in runs_join:
+            if run["build_id"] == build["id"]:
+                run.pop("logs")
+                run.pop("logs_path")
+                build["runs"].append(run)
+    return {"build": build_join}
 
 
-@app.get("/bot/builds/{build_id}", tags=["bot"])
+@app.get("/bot/builds/{build_id}", tags=["bot build"])
 async def bot_builds_id(build_id: int):
     """Specific builds."""
     try:
         return {"build": build_data[build_id]}
     except IndexError:
         return {"build": "not found"}
+
+
+###########################################
+runs_data: list[Any] = []
+
+
+# dublicat
+class Preset(BaseModel):
+    name: str
+    duration: int
+    end_status: Literal["running", "completed", "failed", "null", "stopped"]
+
+
+def imitation_run(id: int, duration: int, end_status: str):
+    time.sleep(duration)
+    if runs_data[id]["status"] == "stopped":
+        return
+    runs_data[id]["status"] = end_status
+
+
+@app.post("/bot/runs/start", tags=["bot runs"])
+async def bot_runs_start(preset: Preset, background_tasks: BackgroundTasks):
+    """Start a runs.
+
+    * name - build name
+    * duration - seconds
+    * end_status - "running", "completed", "failed", "null"
+    """
+    try:
+        build_id = build_data[-1]
+    except IndexError:
+        return {"status": "error", "run_info": "build is not found"}
+    runs_data.append(
+        {
+            "id": len(runs_data),
+            "timestamp": time.time(),
+            "preset_name": preset.dict()["name"],
+            "status": "running",
+            "logs": [],
+            "logs_path": "",
+            "build_id": build_id["id"],
+        }
+    )
+    background_tasks.add_task(
+        imitation_run,
+        id=runs_data[-1]["id"],
+        duration=preset.dict()["duration"],
+        end_status=preset.dict()["end_status"],
+    )
+    return {"status": "ok", "run_info": runs_data[-1]}
+
+
+@app.get("/bot/runs/status/", tags=["bot runs"])
+async def bot_runs_status():
+    """Get build runs."""
+    try:
+        return runs_data[-1]["status"]
+    except IndexError:
+        return {"run": "not found"}
+
+
+@app.get("/bot/runs/stop", tags=["bot runs"])
+async def bot_runs_stop():
+    """Runs stop."""
+    runs_data[-1]["status"] = "stopped"
+    return {"status": "ok"}
+
+
+@app.get("/bot/runs", tags=["bot runs"])
+async def bot_runs():
+    """List runs."""
+    # TODO: add filtering
+    mini_runs_data = copy.deepcopy(runs_data)
+    for run in mini_runs_data:
+        run.pop("logs")
+        run.pop("logs_path")
+    return {"run": mini_runs_data}
+
+
+@app.get("/bot/runs/{runs_id}", tags=["bot runs"])
+async def bot_runs_id(runs_id: int):
+    """Specific runs."""
+    try:
+        return {"run": runs_data[runs_id]}
+    except IndexError:
+        return {"run": "not found"}
