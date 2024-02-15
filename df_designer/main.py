@@ -16,7 +16,7 @@ from sqlalchemy import insert, select, update
 from websockets import ConnectionClosedOK
 
 from df_designer import process
-from df_designer.db_connection import Runs, async_session
+from df_designer.db_connection import Logs, async_session
 from df_designer.db_requests import run_last
 from df_designer.logic import get_data, save_data
 from df_designer.settings import app
@@ -136,7 +136,7 @@ async def dff_tests_condition_post() -> dict[str, str]:
 async def run():
     """get run"""
     async with async_session() as session:
-        stmt = select(Runs)
+        stmt = select(Logs)
         result = await session.execute(stmt)
         logs_list = result.scalars().all()
 
@@ -147,7 +147,7 @@ async def run():
 async def run_file(run_id: str):
     """get run file"""
     async with async_session() as session:
-        stmt = select(Runs).where(Runs.id == run_id)
+        stmt = select(Logs).where(Logs.id == run_id)
         result = await session.execute(stmt)
         log = result.scalar()
     log_file = Path(log.path)
@@ -394,3 +394,7 @@ async def bot_runs_id(runs_id: int):
         return {"run": runs_data[runs_id]}
     except IndexError:
         return {"run": "not found"}
+
+
+# add logs
+# add filtering

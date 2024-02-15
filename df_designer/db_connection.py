@@ -8,8 +8,8 @@ class Base(DeclarativeBase):
     pass
 
 
-class Runs(Base):
-    __tablename__ = "runs"
+class Logs(Base):
+    __tablename__ = "logs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     datetime: Mapped[str]
