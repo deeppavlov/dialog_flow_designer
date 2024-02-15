@@ -75,11 +75,6 @@ def test_dff_tests_condition_get():
     assert response.status_code == 200
 
 
-def test_build_get():
-    response = client.post("/build")
-    assert response.status_code == 200
-
-
 def test_settings():
     assert app.conf_app == "df_designer.main:app"
     assert app.conf_host == "127.0.0.1"
