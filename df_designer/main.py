@@ -328,7 +328,7 @@ def imitation_run(id: int, duration: int, end_status: str):
     runs_data[id]["status"] = end_status
 
 
-@app.post("/bot/runs/start", tags=["bot runs"])
+@app.post("/bot/run/start", tags=["bot runs"])
 async def bot_runs_start(preset: Preset, background_tasks: BackgroundTasks):
     """Start a runs.
 
@@ -360,7 +360,7 @@ async def bot_runs_start(preset: Preset, background_tasks: BackgroundTasks):
     return {"status": "ok", "run_info": runs_data[-1]}
 
 
-@app.get("/bot/runs/status/", tags=["bot runs"])
+@app.get("/bot/run/status/", tags=["bot runs"])
 async def bot_runs_status():
     """Get build runs."""
     try:
@@ -369,7 +369,7 @@ async def bot_runs_status():
         return {"run": "not found"}
 
 
-@app.get("/bot/runs/stop", tags=["bot runs"])
+@app.get("/bot/run/stop", tags=["bot runs"])
 async def bot_runs_stop():
     """Runs stop."""
     runs_data[-1]["status"] = "stopped"
