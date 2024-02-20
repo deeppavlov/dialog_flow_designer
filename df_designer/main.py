@@ -398,18 +398,3 @@ async def bot_runs_id(runs_id: int):
 
 # add logs
 # add filtering
-
-
-@app.post("/build_status", tags=["db"])
-async def build_status(status: str):
-    """
-    * running
-    * completed
-    * failed
-    * null
-    * stopped
-    """
-    from df_designer.db_requests import build_status_insert
-
-    id_record = await build_status_insert(status)
-    return {"id_record": id_record}
