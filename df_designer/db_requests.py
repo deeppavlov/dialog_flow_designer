@@ -47,18 +47,3 @@ async def run_last():
         )
         result = await session.execute(stmt)
         return result.scalar()
-
-
-async def build_status_insert(status: str):
-    """Insert build status."""
-    async with async_session() as session:
-        stmt = (
-            insert(BuildsStatus)
-            .values(
-                status=status,
-            )
-            .returning()
-        )
-        id_record = await session.execute(stmt)
-        await session.commit()
-        return id_record
