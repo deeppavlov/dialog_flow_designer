@@ -4,7 +4,7 @@ import uvicorn
 
 from df_designer.settings import app
 from sqlalchemy import create_engine
-from df_designer.db_connection import Base
+from df_designer.database_tables import Base
 
 cli = typer.Typer()
 

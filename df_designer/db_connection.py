@@ -1,20 +1,7 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
 
 from df_designer.settings import app
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-class Logs(Base):
-    __tablename__ = "logs"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    datetime: Mapped[str]
-    path: Mapped[str]
-    status: Mapped[str]
 
 
 async_engine = create_async_engine(f"sqlite+aiosqlite:///{app.database_file}")

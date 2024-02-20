@@ -1,5 +1,7 @@
 from typing import Any
-from df_designer.db_connection import Logs, async_session
+from unittest import result
+from df_designer.database_tables import Builds, Logs, BuildsStatus
+from df_designer.db_connection import async_session
 from sqlalchemy import insert, select, update
 import time
 from pathlib import Path
@@ -45,3 +47,18 @@ async def run_last():
         )
         result = await session.execute(stmt)
         return result.scalar()
+
+
+async def build_status_insert(status: str):
+    """Insert build status."""
+    async with async_session() as session:
+        stmt = (
+            insert(BuildsStatus)
+            .values(
+                status=status,
+            )
+            .returning()
+        )
+        id_record = await session.execute(stmt)
+        await session.commit()
+        return id_record

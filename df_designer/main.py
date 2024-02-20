@@ -16,7 +16,8 @@ from sqlalchemy import insert, select, update
 from websockets import ConnectionClosedOK
 
 from df_designer import process
-from df_designer.db_connection import Logs, async_session
+from df_designer.database_tables import Logs
+from df_designer.db_connection import async_session
 from df_designer.db_requests import run_last
 from df_designer.logic import get_data, save_data
 from df_designer.settings import app
@@ -248,17 +249,16 @@ async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
     * duration - seconds
     * end_status - "running", "completed", "failed", "null"
     """
-    build_data.append(
-        {
-            "id": len(build_data),
-            "timestamp": time.time(),
-            "preset_name": preset.dict()["name"],
-            "status": "running",
-            "logs": [],
-            "logs_path": "",
-            "runs": [],
-        }
-    )
+    obj: dict[Any, Any] = {
+        "id": len(build_data),
+        "timestamp": time.time(),
+        "preset_name": preset.dict()["name"],
+        "status": "running",
+        "logs": [],
+        "logs_path": "",
+        "runs": [],
+    }
+    build_data.append(obj)
     background_tasks.add_task(
         imitation_build,
         id=build_data[-1]["id"],
@@ -398,3 +398,18 @@ async def bot_runs_id(runs_id: int):
 
 # add logs
 # add filtering
+
+
+@app.post("/build_status", tags=["db"])
+async def build_status(status: str):
+    """
+    * running
+    * completed
+    * failed
+    * null
+    * stopped
+    """
+    from df_designer.db_requests import build_status_insert
+
+    id_record = await build_status_insert(status)
+    return {"id_record": id_record}
