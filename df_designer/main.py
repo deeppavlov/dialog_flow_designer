@@ -13,11 +13,10 @@ from fastapi import BackgroundTasks, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import insert, select, update
-from websockets import ConnectionClosedOK
 
 from df_designer import process
-from df_designer.database_tables import Logs
-from df_designer.db_connection import async_session
+from df_designer.database_tables import Builds, Logs
+from df_designer.db_connection import async_session, session as db_session
 from df_designer.db_requests import run_last
 from df_designer.logic import get_data, save_data
 from df_designer.settings import app
@@ -234,11 +233,14 @@ class Preset(BaseModel):
     end_status: Literal["running", "completed", "failed", "null", "stopped"]
 
 
-def imitation_build(id: int, duration: int, end_status: str):
+def imitation_build(id: int, db_id: int, duration: int, end_status: str):
     time.sleep(duration)
     if build_data[id]["status"] == "stopped":
         return
     build_data[id]["status"] = end_status
+    with db_session() as session:
+        session.query(Builds).filter(Builds.id == db_id).update({"status": end_status})
+        session.commit()
 
 
 @app.post("/bot/build/start", tags=["bot build"])
@@ -259,12 +261,27 @@ async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
         "runs": [],
     }
     build_data.append(obj)
+
+    async with async_session() as session:
+        build = Builds(
+            timestamp=time.time(),
+            preset_name=preset.dict()["name"],
+            logs_path="/",
+            status="running",
+        )
+        session.add(build)
+        await session.commit()
+        await session.refresh(build)
+
     background_tasks.add_task(
         imitation_build,
         id=build_data[-1]["id"],
+        db_id=build.id,
         duration=preset.dict()["duration"],
         end_status=preset.dict()["end_status"],
     )
+
+    return {"status": "ok", "build_info": build}
     return {"status": "ok", "build_info": build_data[-1]}
 
 

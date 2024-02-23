@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, Table
+from sqlalchemy import ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.orm import relationship
 
@@ -14,6 +14,9 @@ class Builds(Base):
     timestamp: Mapped[str]
     preset_name: Mapped[str]
     logs_path: Mapped[str]
+    status: Mapped[str]
+
+    runs: Mapped[list["Runs"]] = relationship(back_populates="builds", lazy="joined")
 
     def __str__(self) -> str:
         return self.preset_name
@@ -29,6 +32,21 @@ class BuildsStatus(Base):
         return self.status
 
 
+class Runs(Base):
+    __tablename__ = "runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    timestamp: Mapped[str]
+    preset_name: Mapped[str]
+    logs_path: Mapped[str]
+
+    builds_id: Mapped[int] = mapped_column(ForeignKey("builds.id"))
+    builds: Mapped["Builds"] = relationship(back_populates="runs")
+
+    def __str__(self) -> str:
+        return self.preset_name
+
+
 class RunsStatus(Base):
     __tablename__ = "runs_status"
 
@@ -36,20 +54,6 @@ class RunsStatus(Base):
     timestamp: Mapped[str]
     path: Mapped[str]
     status: Mapped[str]
-
-    def __str__(self) -> str:
-        return self.status
-
-
-class Runs(Base):
-    __tablename__ = "runs"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[str]
-    preset_name: Mapped[str]
-    status = relationship("RunsStatus", backref="status")
-    logs_path: Mapped[str]
-    build_id = relationship("Builds", backref="build")
 
     def __str__(self) -> str:
         return self.status
