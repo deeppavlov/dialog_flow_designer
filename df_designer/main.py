@@ -12,10 +12,11 @@ import starlette
 from fastapi import BackgroundTasks, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import insert, select, update
+from sqlalchemy import desc, insert, select, update
+from sqlalchemy.exc import NoResultFound
 
 from df_designer import process
-from df_designer.database_tables import Builds, Logs
+from df_designer.database_tables import Builds, BuildsStatus, Logs, Runs
 from df_designer.db_connection import async_session, session as db_session
 from df_designer.db_requests import run_last
 from df_designer.logic import get_data, save_data
@@ -236,9 +237,17 @@ class Preset(BaseModel):
 def imitation_build(id: int, db_id: int, duration: int, end_status: str):
     time.sleep(duration)
     if build_data[id]["status"] == "stopped":
+        with db_session() as session:
+            result = session.query(Builds).order_by(desc(Builds.id)).limit(1)
+            if result.all()[0].status == "stopped":
+                return
         return
     build_data[id]["status"] = end_status
     with db_session() as session:
+        result = session.query(BuildsStatus).filter(BuildsStatus.status == end_status)
+        # session.query(Builds).filter(Builds.id == db_id).update(
+        #     {"builds_status": result}
+        # )
         session.query(Builds).filter(Builds.id == db_id).update({"status": end_status})
         session.commit()
 
@@ -263,11 +272,15 @@ async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
     build_data.append(obj)
 
     async with async_session() as session:
+        builds_status = await session.execute(
+            select(BuildsStatus).filter_by(status="running")
+        )
         build = Builds(
             timestamp=time.time(),
             preset_name=preset.dict()["name"],
             logs_path="/",
             status="running",
+            builds_status=builds_status.unique().all()[0][0],
         )
         session.add(build)
         await session.commit()
@@ -289,6 +302,11 @@ async def bot_build_start(preset: Preset, background_tasks: BackgroundTasks):
 async def bot_build_status():
     """Get build status."""
     try:
+        async with async_session() as session:
+            stmt = select(Builds).order_by(desc(Builds.id)).limit(1)
+            result = await session.execute(stmt)
+            await session.commit()
+            return {"build": result.unique().one()[0].status}
         return build_data[-1]["status"]
     except IndexError:
         return {"build": "not found"}
@@ -298,6 +316,11 @@ async def bot_build_status():
 async def bot_build_stop():
     """Build stop."""
     build_data[-1]["status"] = "stopped"
+    async with async_session() as session:
+        stmt = select(Builds).order_by(desc(Builds.id)).limit(1)
+        result = await session.execute(stmt)
+        result.unique().one()[0].status = "stopped"
+        await session.commit()
     return {"status": "ok"}
 
 
@@ -315,6 +338,12 @@ async def bot_builds():
                 run.pop("logs")
                 run.pop("logs_path")
                 build["runs"].append(run)
+
+    async with async_session() as session:
+        stmt = select(Builds).order_by(desc(Builds.id))
+        result = await session.execute(stmt)
+        await session.commit()
+    return {"build": result.unique().scalars().all()}
     return {"build": build_join}
 
 
@@ -322,6 +351,12 @@ async def bot_builds():
 async def bot_builds_id(build_id: int):
     """Specific builds."""
     try:
+        async with async_session() as session:
+            try:
+                result = await session.get_one(Builds, build_id)
+                return {"build": result}
+            except NoResultFound:
+                return {"build": "not found"}
         return {"build": build_data[build_id]}
     except IndexError:
         return {"build": "not found"}
@@ -338,11 +373,18 @@ class Preset(BaseModel):
     end_status: Literal["running", "completed", "failed", "null", "stopped"]
 
 
-def imitation_run(id: int, duration: int, end_status: str):
+def imitation_run(id: int, db_id: int, duration: int, end_status: str):
     time.sleep(duration)
     if runs_data[id]["status"] == "stopped":
+        with db_session() as session:
+            result = session.query(Runs).order_by(desc(Runs.id)).limit(1)
+            if result.all()[0].status == "stopped":
+                return
         return
     runs_data[id]["status"] = end_status
+    with db_session() as session:
+        session.query(Runs).filter(Runs.id == db_id).update({"status": end_status})
+        session.commit()
 
 
 @app.post("/bot/run/start", tags=["bot runs"])
@@ -368,12 +410,28 @@ async def bot_runs_start(preset: Preset, background_tasks: BackgroundTasks):
             "build_id": build_id["id"],
         }
     )
+    async with async_session() as session:
+        stmt = select(Builds).order_by(desc(Builds.id)).limit(1)
+        result = await session.execute(stmt)
+        run = Runs(
+            timestamp=time.time(),
+            preset_name=preset.dict()["name"],
+            logs_path="/",
+            status="running",
+            builds=result.unique().one()[0],
+        )
+        session.add(run)
+        await session.commit()
+        await session.refresh(run)
+
     background_tasks.add_task(
         imitation_run,
         id=runs_data[-1]["id"],
+        db_id=run.id,
         duration=preset.dict()["duration"],
         end_status=preset.dict()["end_status"],
     )
+    return {"status": "ok", "run_info": run}
     return {"status": "ok", "run_info": runs_data[-1]}
 
 
@@ -381,6 +439,11 @@ async def bot_runs_start(preset: Preset, background_tasks: BackgroundTasks):
 async def bot_runs_status():
     """Get build runs."""
     try:
+        async with async_session() as session:
+            stmt = select(Runs).order_by(desc(Runs.id)).limit(1)
+            result = await session.execute(stmt)
+            await session.commit()
+            return {"run": result.unique().one()[0].status}
         return runs_data[-1]["status"]
     except IndexError:
         return {"run": "not found"}
@@ -389,6 +452,11 @@ async def bot_runs_status():
 @app.get("/bot/run/stop", tags=["bot runs"])
 async def bot_runs_stop():
     """Runs stop."""
+    async with async_session() as session:
+        stmt = select(Runs).order_by(desc(Runs.id)).limit(1)
+        result = await session.execute(stmt)
+        result.unique().one()[0].status = "stopped"
+        await session.commit()
     runs_data[-1]["status"] = "stopped"
     return {"status": "ok"}
 
@@ -401,6 +469,11 @@ async def bot_runs():
     for run in mini_runs_data:
         run.pop("logs")
         run.pop("logs_path")
+    async with async_session() as session:
+        stmt = select(Runs).order_by(desc(Runs.id))
+        result = await session.execute(stmt)
+        await session.commit()
+    return {"run": result.unique().scalars().all()}
     return {"run": mini_runs_data}
 
 
@@ -408,6 +481,12 @@ async def bot_runs():
 async def bot_runs_id(runs_id: int):
     """Specific runs."""
     try:
+        async with async_session() as session:
+            try:
+                result = await session.get_one(Runs, runs_id)
+                return {"run": result}
+            except NoResultFound:
+                return {"run": "not found"}
         return {"run": runs_data[runs_id]}
     except IndexError:
         return {"run": "not found"}

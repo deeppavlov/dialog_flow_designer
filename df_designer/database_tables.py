@@ -18,6 +18,9 @@ class Builds(Base):
 
     runs: Mapped[list["Runs"]] = relationship(back_populates="builds", lazy="joined")
 
+    builds_status_id: Mapped[int] = mapped_column(ForeignKey("builds_status.id"))
+    builds_status: Mapped["BuildsStatus"] = relationship(back_populates="builds")
+
     def __str__(self) -> str:
         return self.preset_name
 
@@ -27,6 +30,9 @@ class BuildsStatus(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     status: Mapped[str] = mapped_column(unique=True)
+    builds: Mapped[list["Builds"]] = relationship(
+        back_populates="builds_status", lazy="joined"
+    )
 
     def __str__(self) -> str:
         return self.status
@@ -39,6 +45,7 @@ class Runs(Base):
     timestamp: Mapped[str]
     preset_name: Mapped[str]
     logs_path: Mapped[str]
+    status: Mapped[str]
 
     builds_id: Mapped[int] = mapped_column(ForeignKey("builds.id"))
     builds: Mapped["Builds"] = relationship(back_populates="runs")
@@ -51,9 +58,7 @@ class RunsStatus(Base):
     __tablename__ = "runs_status"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    timestamp: Mapped[str]
-    path: Mapped[str]
-    status: Mapped[str]
+    status: Mapped[str] = mapped_column(unique=True)
 
     def __str__(self) -> str:
         return self.status

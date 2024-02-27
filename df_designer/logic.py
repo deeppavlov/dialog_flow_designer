@@ -6,6 +6,9 @@ from typing import Any
 
 import aiofiles
 from pydantic import Json
+from sqlalchemy import insert
+from df_designer.database_tables import BuildsStatus, RunsStatus
+from df_designer.db_connection import session
 
 from df_designer.settings import app
 
@@ -35,3 +38,28 @@ def create_directory_to_log():
     """Create directory to log files."""
     if not Path(app.dir_logs).exists():
         Path(app.dir_logs).mkdir()
+
+
+def filling_the_database():
+    """Adding statuses for builds and runs."""
+    with session() as sess:
+        sess.execute(
+            insert(BuildsStatus),
+            [
+                {"status": "running"},
+                {"status": "completed"},
+                {"status": "failed"},
+                {"status": "null"},
+                {"status": "stopped"},
+            ],
+        )
+        sess.execute(
+            insert(RunsStatus),
+            [
+                {"status": "running"},
+                {"status": "failed"},
+                {"status": "null"},
+                {"status": "stopped"},
+            ],
+        )
+        sess.commit()
