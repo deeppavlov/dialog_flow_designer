@@ -5,22 +5,16 @@ import { TabsContext } from "../../contexts/tabsContext";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
-import { SETTINGS_DIALOG_SUBTITLE } from "../../constants";
 import EditFlowSettings from "../../components/EditFlowSettingsComponent";
-import { SeparatorVertical, Settings2 } from "lucide-react";
-import { updateFlowInDatabase } from "../../controllers/API";
+import { Settings2 } from "lucide-react";
 import { FlowColorSVG } from "../../icons/FlowColorSVG";
 import { CheckSVG } from "../../icons/CheckSVG";
-import { Link } from "react-router-dom";
 import { darkContext } from "../../contexts/darkContext";
-import { Separator } from "../../components/ui/separator";
 import { typesContext } from "../../contexts/typesContext";
 
 export default function FlowSettingsModal() {
@@ -33,11 +27,8 @@ export default function FlowSettingsModal() {
   const { flows, tabId, setTabId, updateFlow, setTabsState, saveFlow } =
     useContext(TabsContext);
   const maxLength = 50;
-  const [name, setName] = useState(flows.find((f) => f.id === tabId).name);
-  const [description, setDescription] = useState(
-    flows.find((f) => f.id === tabId).description,
-  );
-  const [color, setColor] = useState(flows.find((f) => f.id === tabId).color ? flows.find((f) => f.id === tabId).color : '')
+  const [currentFlow, setCurrentFlow] = useState(flows.find((flow) => flow.id === tabId));
+
   function setModalOpen(x: boolean) {
     setOpen(x);
     if (x === false) {
@@ -47,8 +38,9 @@ export default function FlowSettingsModal() {
     }
   }
   function handleClick() {
-    let savedFlow = flows.find((f) => f.id === tabId);
-    if (flows.find((f) => (f.name == name && f.id != tabId))) {
+    const { name, description, color, id } = currentFlow;
+    let savedFlow = flows.find((f) => f.id === id);
+    if (flows.find((f) => (f.name == name && f.id != id))) {
       setErrorData({ title: "Flow with same name already exists!" })
       return -1
     }
@@ -72,33 +64,33 @@ export default function FlowSettingsModal() {
           </DialogHeader>
           <div className=" mt-4 w-full ">
             {flows.map((flow, i) => {
-              const active = (flow.id == tabId)
+              const active = (flow.id == currentFlow.id)
+              const isGlobalFlow = flow.id === 'GLOBAL'
               return (
-                <div key={flow.id} className="relative h-max w-full ">
+                <div key={flow.id} className={`relative h-max w-full ${!isGlobalFlow ? 'cursor-pointer' : 'cursor-default'}`}>
                   <div className="block relative w-full">
                     <div
                       key={flow.id}
-                      // to={`/flow/${flow.id}`}
                       onClick={e => {
-                        // setTabId(flow.id)
+                        !isGlobalFlow && setCurrentFlow(flow)
                       }}
-                      className={`w-full ${flow.id == tabId && 'bg-muted'} ${flow.id != 'GLOBAL' ? 'pl-4' : 'pl-1'} py-1.5 px-3 flex flex-row items-center justify-between text-sm bg-background rounded-lg `}>
+                      className={`w-full ${active && 'bg-muted'} ${!isGlobalFlow ? 'pl-4' : 'pl-1'} py-1.5 px-3 flex flex-row items-center justify-between text-sm bg-background rounded-lg `}>
                       <div className={`flex flex-row items-center relative `}>
-                        {flow.id !== "GLOBAL" && i !== flows.length - 1 && <span className="block absolute w-1 h-[1px] bg-neutral-300"></span>}
+                        {!isGlobalFlow && i !== flows.length - 1 && <span className="block absolute w-1 h-[1px] bg-neutral-300"></span>}
                         {i === flows.length - 1 && (
                           <svg className="-rotate-90 absolute -left-[1.5px] top-[7px] " xmlns="http://www.w3.org/2000/svg" width="6" height="6" viewBox="0 0 6 6" fill="none">
                             <path d="M0.5 5C0.5 5.27614 0.723858 5.5 1 5.5C1.27614 5.5 1.5 5.27614 1.5 5H0.5ZM5 1.5H5.5V0.5H5V1.5ZM1.5 5V3H0.5V5H1.5ZM3 1.5H5V0.5H3V1.5ZM1.5 3C1.5 2.17157 2.17157 1.5 3 1.5V0.5C1.61929 0.5 0.5 1.61929 0.5 3H1.5Z" fill="#D4D4D4" />
                           </svg>
                         )}
                         <FlowColorSVG fill={flow.color} />
-                        <span className={`ml-3 ${flow.id === 'GLOBAL' && 'text-neutral-500'} `}> {flow.name} </span>
+                        <span className={`ml-3 ${isGlobalFlow && 'text-neutral-500'} `}> {flow.name} </span>
                       </div>
                       <div className="flex flex-row gap-2">
                         {active && <CheckSVG fill={dark ? "white" : "black"} />}
                       </div>
                     </div>
                   </div>
-                  {flow.id == "GLOBAL" && (
+                  {isGlobalFlow && (
                     <span style={{ height: `${flows.length * 36 - 55}px`, zIndex: 99 }} className={`block absolute w-[1px] bg-neutral-300 z-10 left-[15px] rounded-lg `}> </span>
                   )}
                 </div>
@@ -109,14 +101,8 @@ export default function FlowSettingsModal() {
         {/* <span className="min-h-[320px] max-h-full mx-2.5 w-[1px] bg-border rounded-lg block"></span> */}
         <div className=" w-full h-full flex-col flex justify-between border-l border-border pl-6 ">
           <EditFlowSettings
-            name={name}
-            description={description}
-            flows={flows}
-            tabId={tabId}
-            setName={setName}
-            setDescription={setDescription}
-            setColor={setColor}
-            updateFlow={updateFlow}
+            currentFlow={currentFlow}
+            setCurrentFlow={setCurrentFlow}
           />
 
           <div className=" flex flex-row items-center justify-end mt-8 ">
