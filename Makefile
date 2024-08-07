@@ -77,7 +77,7 @@ unit_tests: ## Runs all backend unit tests
 
 	cd df_designer_project && \
 	poetry install && \
-	poetry run pytest ../${BACKEND_DIR}/app/tests/api ../${BACKEND_DIR}/app/tests/services
+	poetry run pytest ../${BACKEND_DIR}/dflowd/tests/api ../${BACKEND_DIR}/dflowd/tests/services
 
 
 .PHONY: integration_tests
@@ -89,7 +89,7 @@ integration_tests: ## Runs all backend integration tests
 
 	cd df_designer_project && \
 	poetry install && \
-	poetry run pytest ../${BACKEND_DIR}/app/tests/integration
+	poetry run pytest ../${BACKEND_DIR}/dflowd/tests/integration
 
 
 .PHONY: backend_e2e_test
@@ -101,7 +101,7 @@ backend_e2e_test: ## Runs e2e backend test
 
 	cd df_designer_project && \
 	poetry install && \
-	poetry run pytest ../${BACKEND_DIR}/app/tests/e2e
+	poetry run pytest ../${BACKEND_DIR}/dflowd/tests/e2e
 	
 
 .PHONY: backend_tests
@@ -128,8 +128,8 @@ build: install_env ## Builds both frontend & backend
 	make build_backend
 
 .PHONY: run_app
-run_app: check_project_arg install_env build_frontend ## Builds frontend and backend then runs the app. NEEDS arg: PROJECT_NAME
-	cp ${FRONTEND_DIR}/dist/* ${BACKEND_DIR}/app/static/ && \
+run_app: check_project_arg build_frontend ## Builds frontend and backend then runs the app. NEEDS arg: PROJECT_NAME
+	cp ${FRONTEND_DIR}/dist/* ${BACKEND_DIR}/dflowd/static/ && \
 	make build_backend && \
 	make run_backend PROJECT_NAME=${PROJECT_NAME}
 
